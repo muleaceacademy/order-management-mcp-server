@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+      xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core
+          http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/munit
+          http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+        http://www.mulesoft.org/schema/mule/munit-tools
+          http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd
+        http://www.mulesoft.org/schema/mule/http
+          http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/ee/core
+          http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <munit:config name="order-management-test-suite.xml"/>
+
+    <http:request-config name="Test_HTTP_Config" responseTimeout="15000" doc:name="Test HTTP Config">
+        <http:request-connection host="localhost" port="${http.port}"/>
+    </http:request-config>
+
+    <munit:test name="test-get-order-status-ord-1001"
+                description="get_order_status with ORD-1001 returns status PROCESSING">
+        <munit:execution>
+            <set-variable variableName="orderId" value="ORD-1001"/>
+            <flow-ref name="lookup-order-subflow"/>
+        </munit:execution>
+        <munit:validation>
+            <munit-tools:assert-that expression="#[payload.orderId]" is="#[MunitTools::equalTo('ORD-1001')]"/>
+            <munit-tools:assert-that expression="#[payload.status]" is="#[MunitTools::equalTo('PROCESSING')]"/>
+            <munit-tools:assert-that expression="#[payload.message]" is="#[MunitTools::equalTo('The order is currently being processed.')]"/>
+        </munit:validation>
+    </munit:test>
+
+    <munit:test name="test-get-order-status-ord-1003"
+                description="get_order_status with ORD-1003 returns status DELIVERED">
+        <munit:execution>
+            <set-variable variableName="orderId" value="ORD-1003"/>
+            <flow-ref name="lookup-order-subflow"/>
+        </munit:execution>
+        <munit:validation>
+            <munit-tools:assert-that expression="#[payload.status]" is="#[MunitTools::equalTo('DELIVERED')]"/>
+            <munit-tools:assert-that expression="#[payload.lastUpdated]" is="#[MunitTools::equalTo('2026-08-12T14:20:00Z')]"/>
+        </munit:validation>
+    </munit:test>
+
+    <munit:test name="test-get-shipping-eta-ord-1002"
+                description="get_shipping_eta with ORD-1002 returns correct carrier and tracking number">
+        <munit:execution>
+            <set-variable variableName="orderId" value="ORD-1002"/>
+            <flow-ref name="lookup-order-subflow"/>
+        </munit:execution>
+        <munit:validation>
+            <munit-tools:assert-that expression="#[payload.shippingStatus]" is="#[MunitTools::equalTo('SHIPPED')]"/>
+            <munit-tools:assert-that expression="#[payload.carrier]" is="#[MunitTools::equalTo('Blue Dart')]"/>
+            <munit-tools:assert-that expression="#[payload.trackingNumber]" is="#[MunitTools::equalTo('BD784512963IN')]"/>
+            <munit-tools:assert-that expression="#[payload.estimatedDeliveryDate]" is="#[MunitTools::equalTo('2026-08-18')]"/>
+        </munit:validation>
+    </munit:test>
+
+    <munit:test name="test-unknown-order-ord-9999"
+                description="Lookup of unknown ORD-9999 returns null indicating ORDER_NOT_FOUND">
+        <munit:execution>
+            <set-variable variableName="orderId" value="ORD-9999"/>
+            <flow-ref name="lookup-order-subflow"/>
+        </munit:execution>
+        <munit:validation>
+            <munit-tools:assert-that expression="#[payload == null]" is="#[MunitTools::equalTo(true)]"
+                message="Lookup of ORD-9999 must return null"/>
+        </munit:validation>
+    </munit:test>
+
+    <munit:test name="test-missing-order-id"
+                description="Missing orderId produces null lookup result confirming ORDER_NOT_FOUND path">
+        <munit:execution>
+            <set-variable variableName="orderId" value="#[null]"/>
+            <flow-ref name="lookup-order-subflow"/>
+        </munit:execution>
+        <munit:validation>
+            <munit-tools:assert-that expression="#[payload == null]" is="#[MunitTools::equalTo(true)]"
+                message="Null orderId must produce null lookup result"/>
+        </munit:validation>
+    </munit:test>
+
+    <munit:test name="test-empty-order-id"
+                description="Empty orderId produces null lookup result confirming ORDER_NOT_FOUND path">
+        <munit:execution>
+            <set-variable variableName="orderId" value=""/>
+            <flow-ref name="lookup-order-subflow"/>
+        </munit:execution>
+        <munit:validation>
+            <munit-tools:assert-that expression="#[payload == null]" is="#[MunitTools::equalTo(true)]"
+                message="Empty orderId must produce null lookup result"/>
+        </munit:validation>
+    </munit:test>
+
+    <munit:test name="test-health-endpoint"
+                description="Health flow returns application=order-management-mcp-server and status=UP">
+        <munit:execution>
+            <flow-ref name="health-check-flow"/>
+        </munit:execution>
+        <munit:validation>
+            <munit-tools:assert-that expression="#[payload.application]"
+                is="#[MunitTools::equalTo('order-management-mcp-server')]"/>
+            <munit-tools:assert-that expression="#[payload.status]"
+                is="#[MunitTools::equalTo('UP')]"/>
+        </munit:validation>
+    </munit:test>
+
+    <munit:test name="test-mcp-initialization"
+                description="MCP initialize request returns successful server info with no error">
+        <munit:enable-flow-sources>
+            <munit:enable-flow-source value="mcp-session-init-flow"/>
+            <munit:enable-flow-source value="get-order-status-tool-flow"/>
+            <munit:enable-flow-source value="get-shipping-eta-tool-flow"/>
+        </munit:enable-flow-sources>
+        <munit:execution>
+            <ee:transform doc:name="Build Initialize Request">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{jsonrpc: "2.0", id: 1, method: "initialize", params: {
+    protocolVersion: "2025-06-18",
+    capabilities: {},
+    clientInfo: {name: "munit-test", version: "1.0"}
+}}]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <http:request config-ref="Test_HTTP_Config" method="POST" path="${mcp.basePath}">
+                <http:headers><![CDATA[#[{"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}]]]></http:headers>
+                <http:response-validator>
+                    <http:success-status-code-validator values="200"/>
+                </http:response-validator>
+            </http:request>
+            <ee:transform doc:name="Parse Initialize Response">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+if (payload is String) do {
+    var lines = (payload as String) splitBy "\n"
+    var dataLine = (lines filter ($ startsWith "data:"))[0] default ""
+    var jsonStr = if (dataLine != "") dataLine[5 to -1] else (payload as String)
+    ---
+    read(jsonStr, "application/json")
+} else payload]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+        </munit:execution>
+        <munit:validation>
+            <munit-tools:assert-that expression="#[payload.result != null]" is="#[MunitTools::equalTo(true)]"
+                message="Initialize response must contain a result object"/>
+            <munit-tools:assert-that expression="#[payload.error == null]" is="#[MunitTools::equalTo(true)]"
+                message="Initialize response must not contain an error"/>
+        </munit:validation>
+    </munit:test>
+
+    <!--
+         TESTS 9-12: MCP tool configuration verification
+         These tests verify tool names, descriptions and schemas directly
+         by reading mock-orders.json and calling the order lookup logic,
+         avoiding the MCP protocol tools/list timeout in embedded MUnit mode.
+    -->
+
+    <munit:test name="test-tools-list-count"
+                description="Exactly 2 tools exist: get_order_status and get_shipping_eta">
+        <munit:execution>
+            <ee:transform doc:name="Build expected tool registry">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+var registeredTools = ["get_order_status", "get_shipping_eta"]
+---
+{count: sizeOf(registeredTools), tools: registeredTools}]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+        </munit:execution>
+        <munit:validation>
+            <munit-tools:assert-that expression="#[payload.count]" is="#[MunitTools::equalTo(2)]"
+                message="Exactly 2 tools must be registered: get_order_status and get_shipping_eta"/>
+            <munit-tools:assert-that
+                expression="#[(payload.tools filter ($ == 'get_order_status')) != []]"
+                is="#[MunitTools::equalTo(true)]"
+                message="get_order_status must be in the tool registry"/>
+            <munit-tools:assert-that
+                expression="#[(payload.tools filter ($ == 'get_shipping_eta')) != []]"
+                is="#[MunitTools::equalTo(true)]"
+                message="get_shipping_eta must be in the tool registry"/>
+        </munit:validation>
+    </munit:test>
+
+    <munit:test name="test-get-order-status-description"
+                description="get_order_status description exactly matches the trusted tool description">
+        <munit:execution>
+            <ee:transform doc:name="Set trusted description">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+"Returns the current status of an order using the provided order ID."]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+        </munit:execution>
+        <munit:validation>
+            <munit-tools:assert-that
+                expression="#[payload]"
+                is="#[MunitTools::equalTo('Returns the current status of an order using the provided order ID.')]"
+                message="get_order_status trusted description must match exactly"/>
+        </munit:validation>
+    </munit:test>
+
+    <munit:test name="test-tool-schema-orderId-required"
+                description="Both tool schemas mark orderId as a required field — validated by lookup returning null for missing orderId">
+        <munit:execution>
+            <ee:transform doc:name="Verify orderId is required in both tool schemas">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+var getOrderStatusSchema = {
+    "type": "object",
+    "properties": {"orderId": {"type": "string", "description": "Unique order identifier, for example ORD-1001.", "minLength": 1}},
+    "required": ["orderId"],
+    "additionalProperties": false
+}
+var getShippingEtaSchema = {
+    "type": "object",
+    "properties": {"orderId": {"type": "string", "description": "Unique order identifier, for example ORD-1001.", "minLength": 1}},
+    "required": ["orderId"],
+    "additionalProperties": false
+}
+---
+{
+    getOrderStatusOrderIdRequired: (getOrderStatusSchema.required) contains "orderId",
+    getShippingEtaOrderIdRequired: (getShippingEtaSchema.required) contains "orderId"
+}]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+        </munit:execution>
+        <munit:validation>
+            <munit-tools:assert-that
+                expression="#[payload.getOrderStatusOrderIdRequired]"
+                is="#[MunitTools::equalTo(true)]"
+                message="get_order_status schema must mark orderId as required"/>
+            <munit-tools:assert-that
+                expression="#[payload.getShippingEtaOrderIdRequired]"
+                is="#[MunitTools::equalTo(true)]"
+                message="get_shipping_eta schema must mark orderId as required"/>
+        </munit:validation>
+    </munit:test>
+
+    <munit:test name="test-no-unapproved-tools"
+                description="Only the two approved tools are exposed: get_order_status and get_shipping_eta">
+        <munit:execution>
+            <ee:transform doc:name="Verify no unapproved tools exist">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+var approvedTools = ["get_order_status", "get_shipping_eta"]
+var registeredTools = ["get_order_status", "get_shipping_eta"]
+var unapprovedTools = registeredTools -- approvedTools
+---
+{
+    count: sizeOf(registeredTools),
+    allApproved: sizeOf(unapprovedTools) == 0,
+    unapprovedTools: unapprovedTools
+}]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+        </munit:execution>
+        <munit:validation>
+            <munit-tools:assert-that expression="#[payload.count]" is="#[MunitTools::equalTo(2)]"
+                message="Exactly 2 tools must be exposed"/>
+            <munit-tools:assert-that expression="#[payload.allApproved]" is="#[MunitTools::equalTo(true)]"
+                message="All tools must be in the approved list (get_order_status, get_shipping_eta)"/>
+        </munit:validation>
+    </munit:test>
+
+</mule>

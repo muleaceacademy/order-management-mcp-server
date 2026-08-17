@@ -1,0 +1,25 @@
+{
+  "name": "Order Management MCP Server",
+  "description": "MCP server exposing get_order_status and get_shipping_eta tools for the Order Management domain. Uses MCP protocol 2025-06-18 with Streamable HTTP transport. Built with MuleSoft MCP Connector 1.6.1 on Mule 4.11.6 / Java 17.",
+  "assetId": "order-management-mcp-server",
+  "groupId": "fe00914c-6279-41b9-8a8d-3862f038b542",
+  "version": "1.0.0",
+  "classifier": "custom",
+  "main": "mcp-spec.json",
+  "tags": [
+    "mcp",
+    "order-management",
+    "streamable-http",
+    "2025-06-18",
+    "mulesoft"
+  ],
+  "keywords": [
+    "MCP",
+    "Model Context Protocol",
+    "order status",
+    "shipping ETA",
+    "order management"
+  ],
+  "contactName": "Order Management Team",
+  "contactEmail": "muleaceacademy@gmail.com"
+}

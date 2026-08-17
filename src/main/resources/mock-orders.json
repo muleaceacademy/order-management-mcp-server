@@ -1,0 +1,32 @@
+[
+  {
+    "orderId": "ORD-1001",
+    "status": "PROCESSING",
+    "lastUpdated": "2026-08-15T08:30:00Z",
+    "message": "The order is currently being processed.",
+    "shippingStatus": "NOT_SHIPPED",
+    "carrier": null,
+    "trackingNumber": null,
+    "estimatedDeliveryDate": "2026-08-20"
+  },
+  {
+    "orderId": "ORD-1002",
+    "status": "SHIPPED",
+    "lastUpdated": "2026-08-15T06:45:00Z",
+    "message": "The order has been shipped.",
+    "shippingStatus": "SHIPPED",
+    "carrier": "Blue Dart",
+    "trackingNumber": "BD784512963IN",
+    "estimatedDeliveryDate": "2026-08-18"
+  },
+  {
+    "orderId": "ORD-1003",
+    "status": "DELIVERED",
+    "lastUpdated": "2026-08-12T14:20:00Z",
+    "message": "The order was delivered successfully.",
+    "shippingStatus": "DELIVERED",
+    "carrier": "DHL",
+    "trackingNumber": "DHL963258741",
+    "estimatedDeliveryDate": "2026-08-12"
+  }
+]

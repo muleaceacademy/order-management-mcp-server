@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN" monitorInterval="30">
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%-5p %d [%t] [event: %X{correlationId}] %c: %m%n"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <!-- Application logger -->
+        <AsyncLogger name="com.mycompany" level="INFO" additivity="false">
+            <AppenderRef ref="Console"/>
+        </AsyncLogger>
+
+        <!-- MCP connector logger -->
+        <AsyncLogger name="com.mulesoft.connectors.mcp" level="INFO" additivity="false">
+            <AppenderRef ref="Console"/>
+        </AsyncLogger>
+
+        <!-- Mule runtime loggers -->
+        <AsyncLogger name="org.mule" level="INFO" additivity="false">
+            <AppenderRef ref="Console"/>
+        </AsyncLogger>
+        <AsyncLogger name="com.mulesoft" level="INFO" additivity="false">
+            <AppenderRef ref="Console"/>
+        </AsyncLogger>
+
+        <!-- Suppress verbose framework loggers -->
+        <AsyncLogger name="org.apache" level="WARN" additivity="false">
+            <AppenderRef ref="Console"/>
+        </AsyncLogger>
+        <AsyncLogger name="org.springframework" level="WARN" additivity="false">
+            <AppenderRef ref="Console"/>
+        </AsyncLogger>
+
+        <AsyncRoot level="WARN">
+            <AppenderRef ref="Console"/>
+        </AsyncRoot>
+    </Loggers>
+</Configuration>

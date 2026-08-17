@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:mcp="http://www.mulesoft.org/schema/mule/mcp"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core
+          http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/mcp
+          http://www.mulesoft.org/schema/mule/mcp/current/mule-mcp.xsd">
+
+    <!--
+        MCP Session Initialization Flow
+        Fires once per MCP client session (the MCP "initialize" request).
+        Logs client identity and correlation ID for observability.
+        No rejection logic is applied in the baseline implementation.
+    -->
+    <flow name="mcp-session-init-flow"
+          doc:name="MCP Session Init Flow"
+          doc:description="Handles incoming MCP initialize requests; logs new session details">
+
+        <mcp:on-new-session-listener
+            config-ref="MCP_Server_Config"
+            doc:name="MCP New Session Listener"
+            doc:description="Fires when an MCP client connects and sends the initialize request"/>
+
+        <logger
+            level="INFO"
+            message="#['[' ++ correlationId ++ '] MCP session initialized - client: ' ++ ((attributes.clientName default 'unknown') ++ ' v' ++ (attributes.clientVersion default 'unknown'))]"
+            doc:name="Log Session Init"
+            doc:description="Logs the new MCP session with client name, version, and correlation ID"/>
+
+    </flow>
+
+</mule>

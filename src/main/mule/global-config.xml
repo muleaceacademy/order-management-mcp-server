@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:mcp="http://www.mulesoft.org/schema/mule/mcp"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core
+          http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http
+          http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/mcp
+          http://www.mulesoft.org/schema/mule/mcp/current/mule-mcp.xsd">
+
+    <!-- Load application configuration properties -->
+    <configuration-properties
+        file="application.properties"
+        doc:name="Application Properties"
+        doc:description="Loads http.host, http.port and mcp.basePath from application.properties"/>
+
+    <!--
+        HTTP Listener Configuration
+        Backs both the /mcp MCP endpoint and the /health check endpoint.
+        Host and port are configurable via application.properties.
+    -->
+    <http:listener-config
+        name="HTTP_Listener_Config"
+        doc:name="HTTP Listener Config"
+        doc:description="HTTP listener shared by the MCP Streamable HTTP transport and the health endpoint">
+        <http:listener-connection
+            host="${http.host}"
+            port="${http.port}"/>
+    </http:listener-config>
+
+    <!--
+        MCP Server Configuration
+        Uses Streamable HTTP transport (protocol 2025-06-18).
+        The deprecated standalone SSE transport is intentionally NOT used.
+        serverName and serverVersion identify this server during the MCP
+        initialize handshake and appear in tools/list responses.
+    -->
+    <mcp:server-config
+        name="MCP_Server_Config"
+        serverName="Order Management MCP Server"
+        serverVersion="1.0.0"
+        doc:name="MCP Server Config"
+        doc:description="MCP server using Streamable HTTP transport on the /mcp base path">
+        <mcp:streamable-http-server-connection
+            listenerConfig="HTTP_Listener_Config"/>
+    </mcp:server-config>
+
+</mule>

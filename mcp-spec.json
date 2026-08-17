@@ -1,0 +1,60 @@
+{
+  "transport": {
+    "kind": "sse"
+  },
+  "tools": [
+    {
+      "name": "get_order_status",
+      "description": "Returns the current status of an order using the provided order ID.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "description": "Unique order identifier, for example ORD-1001.",
+            "minLength": 1
+          }
+        },
+        "required": ["orderId"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "orderId":     { "type": "string" },
+          "status":      { "type": "string" },
+          "lastUpdated": { "type": "string" },
+          "message":     { "type": "string" }
+        },
+        "required": ["orderId", "status", "lastUpdated", "message"]
+      }
+    },
+    {
+      "name": "get_shipping_eta",
+      "description": "Returns the estimated shipping and delivery information for an order using the provided order ID.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "description": "Unique order identifier, for example ORD-1001.",
+            "minLength": 1
+          }
+        },
+        "required": ["orderId"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "orderId":               { "type": "string" },
+          "shippingStatus":        { "type": "string" },
+          "carrier":               { "type": ["string", "null"] },
+          "trackingNumber":        { "type": ["string", "null"] },
+          "estimatedDeliveryDate": { "type": "string" }
+        },
+        "required": ["orderId", "shippingStatus", "estimatedDeliveryDate"]
+      }
+    }
+  ]
+}
