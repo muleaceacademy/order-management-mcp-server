@@ -42,35 +42,6 @@ Output: `target/order-management-mcp-server-1.0.0-SNAPSHOT-mule-application.jar`
 
 ---
 
-## MUnit Test Suite
-
-```bash
-mvn clean test
-```
-
-Expected output:
-
-```
-Tests run: 12 - Failed: 0 - Errors: 0 - Skipped: 0
-BUILD SUCCESS
-```
-
-**12 tests cover:**
-1. `get_order_status` with ORD-1001 → PROCESSING
-2. `get_order_status` with ORD-1003 → DELIVERED
-3. `get_shipping_eta` with ORD-1002 → Blue Dart carrier
-4. Unknown order ORD-9999 → ORDER_NOT_FOUND
-5. Missing `orderId` → null lookup
-6. Empty `orderId` → null lookup
-7. Health endpoint → `{"status":"UP"}`
-8. MCP initialization succeeds
-9. Exactly 2 tools registered
-10. `get_order_status` description exact match
-11. `orderId` marked as required in both schemas
-12. No unapproved tools exposed
-
----
-
 ## Run Locally
 
 ```bash
