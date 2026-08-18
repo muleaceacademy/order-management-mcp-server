@@ -15,7 +15,9 @@ And `get_shipping_eta`
 
 The trusted description of `get_order_status` says:
 
-“Returns the current status of an order using the provided order ID.”
+```
+Returns the current status of an order using the provided order ID.
+```
 
 
 ## Prerequisites
