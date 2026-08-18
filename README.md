@@ -1,13 +1,21 @@
-# Order Management MCP Server
+# Stop MCP Tool Poisoning with MuleSoft Omni Gateway
 
-A production-quality proof-of-concept MCP (Model Context Protocol) server built with MuleSoft,
-exposing two order management tools via the Streamable HTTP transport using protocol `2025-06-18`.
-
+Introduces Tool Poisoning Detection. Omni Gateway pins the trusted toolset from Exchange and detects unauthorized changes in backend tools/list responses.
 ---
 <img width="1672" height="941" alt="image" src="https://github.com/user-attachments/assets/bd90b192-09b6-42c5-bbe3-934c4da00bea" />
 
 
 <img width="1110" height="605" alt="image" src="https://github.com/user-attachments/assets/ff9ba25e-1cbd-4877-b23e-6999553999f5" />
+
+For this demonstration, I have created a simple Order Management MCP Server with two tools:
+
+`get_order_status`
+
+And `get_shipping_eta`
+
+The trusted description of `get_order_status` says:
+
+“Returns the current status of an order using the provided order ID.”
 
 
 ## Prerequisites
