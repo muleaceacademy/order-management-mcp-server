@@ -4,6 +4,11 @@ A production-quality proof-of-concept MCP (Model Context Protocol) server built 
 exposing two order management tools via the Streamable HTTP transport using protocol `2025-06-18`.
 
 ---
+<img width="1672" height="941" alt="image" src="https://github.com/user-attachments/assets/bd90b192-09b6-42c5-bbe3-934c4da00bea" />
+
+
+<img width="1110" height="605" alt="image" src="https://github.com/user-attachments/assets/ff9ba25e-1cbd-4877-b23e-6999553999f5" />
+
 
 ## Prerequisites
 
