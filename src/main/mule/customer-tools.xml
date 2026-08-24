@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:mcp="http://www.mulesoft.org/schema/mule/mcp"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core
+          http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/mcp
+          http://www.mulesoft.org/schema/mule/mcp/current/mule-mcp.xsd
+        http://www.mulesoft.org/schema/mule/ee/core
+          http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <!-- ================================================================
+         TOOL: customer_lookup
+         Looks up a customer in mock-customers.json using either
+         customerId or email. Exactly one of the two must be supplied.
+         ================================================================ -->
+    <flow name="customer-lookup-tool-flow"
+          doc:name="Tool: customer_lookup"
+          doc:description="MCP tool flow that retrieves a customer record by customerId or email">
+
+        <mcp:tool-listener
+            name="customer_lookup"
+            config-ref="MCP_Server_Config"
+            doc:name="MCP Tool Listener: customer_lookup"
+            doc:description="Registers customer_lookup tool; fires on tools/call for this tool name">
+
+            <mcp:description>Look up a customer record by customerId (e.g. CUST-101) or email address. Supply exactly one of the two parameters.</mcp:description>
+
+            <mcp:parameters-schema><![CDATA[{
+  "type": "object",
+  "properties": {
+    "customerId": {
+      "type": "string",
+      "description": "Unique customer identifier, for example CUST-101."
+    },
+    "email": {
+      "type": "string",
+      "description": "Customer email address, for example alice.johnson@example.com."
+    }
+  },
+  "additionalProperties": false
+}]]></mcp:parameters-schema>
+
+            <mcp:output-schema-definition>
+                <mcp:inline-output-schema>
+                    <mcp:output-schema><![CDATA[{
+  "type": "object",
+  "properties": {
+    "customerId":   { "type": "string" },
+    "name":         { "type": "string" },
+    "email":        { "type": "string" },
+    "phone":        { "type": "string" },
+    "address": {
+      "type": "object",
+      "properties": {
+        "street":  { "type": "string" },
+        "city":    { "type": "string" },
+        "state":   { "type": "string" },
+        "zip":     { "type": "string" },
+        "country": { "type": "string" }
+      }
+    },
+    "tier":         { "type": "string" },
+    "totalOrders":  { "type": "number" },
+    "createdAt":    { "type": "string" }
+  },
+  "required": ["customerId", "name", "email", "tier"]
+}]]></mcp:output-schema>
+                </mcp:inline-output-schema>
+            </mcp:output-schema-definition>
+
+            <mcp:responses>
+                <mcp:text-tool-response-content
+                    text="#[write(payload, 'application/json')]"/>
+            </mcp:responses>
+
+            <mcp:on-error-responses>
+                <mcp:text-tool-response-content
+                    text="#[write(vars.mcpError default {code: 'INTERNAL_ERROR', message: 'An unexpected error occurred during customer lookup.'}, 'application/json')]"/>
+            </mcp:on-error-responses>
+
+        </mcp:tool-listener>
+
+        <!-- Extract lookup parameters -->
+        <set-variable variableName="lookupCustomerId"
+            value="#[trim(payload.customerId default '') as String]"
+            doc:name="Extract customerId"
+            doc:description="Extracts optional customerId from tool call input"/>
+        <set-variable variableName="lookupEmail"
+            value="#[trim(payload.email default '') as String]"
+            doc:name="Extract email"
+            doc:description="Extracts optional email from tool call input"/>
+
+        <!-- Validate: at least one lookup key must be provided -->
+        <choice doc:name="Validate Input" doc:description="Ensures at least customerId or email is supplied">
+            <when expression="#[vars.lookupCustomerId == '' and vars.lookupEmail == '']">
+                <set-variable
+                    variableName="mcpError"
+                    value="#[{code: 'INVALID_INPUT', message: 'Provide either customerId or email to look up a customer.'}]"
+                    doc:name="Set Missing Input Error"
+                    doc:description="Builds INVALID_INPUT error when neither customerId nor email is supplied"/>
+                <raise-error type="APP:INVALID_INPUT" description="customerId or email is required"
+                    doc:name="Raise INVALID_INPUT"
+                    doc:description="Propagates error so mcp:on-error-responses returns the structured error"/>
+            </when>
+        </choice>
+
+        <!-- Look up customer in mock data -->
+        <ee:transform
+            doc:name="Find Customer"
+            doc:description="Reads mock-customers.json and returns the matching customer or null">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+var allCustomers = readUrl("classpath://mock-customers.json", "application/json")
+var byId    = if (vars.lookupCustomerId != '') allCustomers filter ($.customerId == vars.lookupCustomerId) else allCustomers
+var byEmail = if (vars.lookupEmail != '') byId filter (lower($.email) == lower(vars.lookupEmail)) else byId
+---
+if (sizeOf(byEmail) > 0) byEmail[0]
+else null]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+
+        <!-- Route: customer found vs not found -->
+        <choice doc:name="Customer Found?" doc:description="Routes to success or raises CUSTOMER_NOT_FOUND">
+            <when expression="#[payload == null]">
+                <set-variable
+                    variableName="mcpError"
+                    value="#[{code: 'CUSTOMER_NOT_FOUND', message: 'No customer was found matching the supplied criteria.', customerId: (vars.lookupCustomerId default ''), email: (vars.lookupEmail default '')}]"
+                    doc:name="Set Not Found Error"
+                    doc:description="Builds CUSTOMER_NOT_FOUND error payload"/>
+                <raise-error type="APP:CUSTOMER_NOT_FOUND" description="Customer not found"
+                    doc:name="Raise CUSTOMER_NOT_FOUND"
+                    doc:description="Propagates error to mcp:on-error-responses"/>
+            </when>
+            <otherwise>
+                <logger
+                    level="INFO"
+                    message="#['[' ++ correlationId ++ '] customer_lookup | customerId=' ++ (payload.customerId default '') ++ ' | name=' ++ (payload.name default '')]"
+                    doc:name="Log Success"
+                    doc:description="Logs successful customer lookup with customerId and name"/>
+            </otherwise>
+        </choice>
+
+        <error-handler>
+            <on-error-propagate type="APP:INVALID_INPUT"
+                doc:name="Handle INVALID_INPUT"
+                doc:description="Propagates INVALID_INPUT so mcp:on-error-responses sends the structured error">
+                <logger level="WARN"
+                    message="#['[' ++ correlationId ++ '] customer_lookup | INVALID_INPUT - no customerId or email supplied']"
+                    doc:name="Log Invalid Input"
+                    doc:description="Logs the missing-input warning"/>
+            </on-error-propagate>
+            <on-error-propagate type="APP:CUSTOMER_NOT_FOUND"
+                doc:name="Handle CUSTOMER_NOT_FOUND"
+                doc:description="Propagates CUSTOMER_NOT_FOUND so mcp:on-error-responses sends the structured error">
+                <logger level="WARN"
+                    message="#['[' ++ correlationId ++ '] customer_lookup | CUSTOMER_NOT_FOUND | customerId=' ++ (vars.lookupCustomerId default '') ++ ' | email=' ++ (vars.lookupEmail default '')]"
+                    doc:name="Log Not Found"
+                    doc:description="Logs the CUSTOMER_NOT_FOUND warning"/>
+            </on-error-propagate>
+        </error-handler>
+
+    </flow>
+
+</mule>

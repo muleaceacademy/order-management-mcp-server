@@ -1,0 +1,62 @@
+[
+  {
+    "sku": "SKU-A100",
+    "name": "Wireless Mouse",
+    "category": "Computer Peripherals",
+    "stockQuantity": 150,
+    "reservedQuantity": 12,
+    "availableQuantity": 138,
+    "warehouseLocation": "WH-BLR-A3",
+    "reorderLevel": 20,
+    "unitPrice": 29.99,
+    "status": "IN_STOCK"
+  },
+  {
+    "sku": "SKU-B200",
+    "name": "USB Hub",
+    "category": "Computer Peripherals",
+    "stockQuantity": 75,
+    "reservedQuantity": 5,
+    "availableQuantity": 70,
+    "warehouseLocation": "WH-BLR-B1",
+    "reorderLevel": 15,
+    "unitPrice": 19.99,
+    "status": "IN_STOCK"
+  },
+  {
+    "sku": "SKU-C300",
+    "name": "Mechanical Keyboard",
+    "category": "Computer Peripherals",
+    "stockQuantity": 8,
+    "reservedQuantity": 2,
+    "availableQuantity": 6,
+    "warehouseLocation": "WH-CHN-C2",
+    "reorderLevel": 10,
+    "unitPrice": 89.99,
+    "status": "LOW_STOCK"
+  },
+  {
+    "sku": "SKU-D400",
+    "name": "Monitor Stand",
+    "category": "Desk Accessories",
+    "stockQuantity": 0,
+    "reservedQuantity": 0,
+    "availableQuantity": 0,
+    "warehouseLocation": "WH-DEL-D4",
+    "reorderLevel": 10,
+    "unitPrice": 45.00,
+    "status": "OUT_OF_STOCK"
+  },
+  {
+    "sku": "SKU-E500",
+    "name": "Laptop Stand",
+    "category": "Desk Accessories",
+    "stockQuantity": 40,
+    "reservedQuantity": 3,
+    "availableQuantity": 37,
+    "warehouseLocation": "WH-BLR-A1",
+    "reorderLevel": 10,
+    "unitPrice": 34.99,
+    "status": "IN_STOCK"
+  }
+]

@@ -1,0 +1,50 @@
+[
+  {
+    "customerId": "CUST-101",
+    "name": "Alice Johnson",
+    "email": "alice.johnson@example.com",
+    "phone": "+91-9876543210",
+    "address": {
+      "street": "42 MG Road",
+      "city": "Bengaluru",
+      "state": "Karnataka",
+      "zip": "560001",
+      "country": "India"
+    },
+    "tier": "GOLD",
+    "totalOrders": 2,
+    "createdAt": "2024-03-15"
+  },
+  {
+    "customerId": "CUST-102",
+    "name": "Ravi Kumar",
+    "email": "ravi.kumar@example.com",
+    "phone": "+91-9812345678",
+    "address": {
+      "street": "10 Anna Salai",
+      "city": "Chennai",
+      "state": "Tamil Nadu",
+      "zip": "600002",
+      "country": "India"
+    },
+    "tier": "SILVER",
+    "totalOrders": 2,
+    "createdAt": "2025-01-20"
+  },
+  {
+    "customerId": "CUST-103",
+    "name": "Priya Patel",
+    "email": "priya.patel@example.com",
+    "phone": "+91-9923456789",
+    "address": {
+      "street": "7 SG Highway",
+      "city": "Ahmedabad",
+      "state": "Gujarat",
+      "zip": "380051",
+      "country": "India"
+    },
+    "tier": "BRONZE",
+    "totalOrders": 1,
+    "createdAt": "2025-06-05"
+  }
+]

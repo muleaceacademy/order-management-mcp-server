@@ -1,0 +1,496 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:mcp="http://www.mulesoft.org/schema/mule/mcp"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core
+          http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/mcp
+          http://www.mulesoft.org/schema/mule/mcp/current/mule-mcp.xsd
+        http://www.mulesoft.org/schema/mule/ee/core
+          http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <!-- ================================================================
+         TOOL: create_invoice
+         Retrieves or generates an invoice for an order from
+         mock-invoices.json. Returns full invoice with line items.
+         ================================================================ -->
+    <flow name="create-invoice-tool-flow"
+          doc:name="Tool: create_invoice"
+          doc:description="MCP tool flow that retrieves or generates an invoice for a given orderId">
+
+        <mcp:tool-listener
+            name="create_invoice"
+            config-ref="MCP_Server_Config"
+            doc:name="MCP Tool Listener: create_invoice"
+            doc:description="Registers create_invoice tool; fires on tools/call for this tool name">
+
+            <mcp:description>Retrieve or generate an invoice for an order. Returns the invoice ID, status, line items, subtotal, tax, and total amount for the specified order.</mcp:description>
+
+            <mcp:parameters-schema><![CDATA[{
+  "type": "object",
+  "properties": {
+    "orderId": {
+      "type": "string",
+      "description": "Unique order identifier for which to retrieve or create an invoice, for example ORD-1001.",
+      "minLength": 1
+    }
+  },
+  "required": ["orderId"],
+  "additionalProperties": false
+}]]></mcp:parameters-schema>
+
+            <mcp:output-schema-definition>
+                <mcp:inline-output-schema>
+                    <mcp:output-schema><![CDATA[{
+  "type": "object",
+  "properties": {
+    "invoiceId":   { "type": "string" },
+    "orderId":     { "type": "string" },
+    "customerId":  { "type": "string" },
+    "invoiceDate": { "type": "string" },
+    "dueDate":     { "type": "string" },
+    "status":      { "type": "string" },
+    "currency":    { "type": "string" },
+    "subtotal":    { "type": "number" },
+    "taxRate":     { "type": "number" },
+    "taxAmount":   { "type": "number" },
+    "total":       { "type": "number" },
+    "lineItems": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sku":         { "type": "string" },
+          "description": { "type": "string" },
+          "qty":         { "type": "number" },
+          "unitPrice":   { "type": "number" },
+          "lineTotal":   { "type": "number" }
+        }
+      }
+    }
+  },
+  "required": ["invoiceId", "orderId", "status", "total", "lineItems"]
+}]]></mcp:output-schema>
+                </mcp:inline-output-schema>
+            </mcp:output-schema-definition>
+
+            <mcp:responses>
+                <mcp:text-tool-response-content
+                    text="#[write(payload, 'application/json')]"/>
+            </mcp:responses>
+
+            <mcp:on-error-responses>
+                <mcp:text-tool-response-content
+                    text="#[write(vars.mcpError default {code: 'INTERNAL_ERROR', message: 'An unexpected error occurred during invoice creation.'}, 'application/json')]"/>
+            </mcp:on-error-responses>
+
+        </mcp:tool-listener>
+
+        <!-- Extract and trim orderId -->
+        <set-variable variableName="orderId"
+            value="#[trim(payload.orderId default '') as String]"
+            doc:name="Extract orderId"
+            doc:description="Extracts and trims orderId from tool call input"/>
+
+        <!-- Validate: reject empty orderId -->
+        <choice doc:name="Validate orderId" doc:description="Rejects missing or empty orderId before querying mock data">
+            <when expression="#[vars.orderId == '']">
+                <set-variable
+                    variableName="mcpError"
+                    value="#[{code: 'INVALID_INPUT', message: 'orderId is required to create or retrieve an invoice.', orderId: vars.orderId}]"
+                    doc:name="Set Empty orderId Error"
+                    doc:description="Builds INVALID_INPUT error when orderId is missing or empty"/>
+                <raise-error type="APP:INVALID_INPUT" description="orderId is missing or empty"
+                    doc:name="Raise INVALID_INPUT"
+                    doc:description="Propagates error so mcp:on-error-responses returns the structured error"/>
+            </when>
+        </choice>
+
+        <!-- Look up invoice in mock data -->
+        <ee:transform
+            doc:name="Find Invoice"
+            doc:description="Reads mock-invoices.json and returns the invoice matching the orderId, or null if not found">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+var allInvoices = readUrl("classpath://mock-invoices.json", "application/json")
+var matches     = allInvoices filter ($.orderId == vars.orderId)
+---
+if (sizeOf(matches) > 0) matches[0]
+else null]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+
+        <!-- Route: invoice found vs not found -->
+        <choice doc:name="Invoice Found?" doc:description="Routes to success or raises INVOICE_NOT_FOUND">
+            <when expression="#[payload == null]">
+                <set-variable
+                    variableName="mcpError"
+                    value="#[{code: 'INVOICE_NOT_FOUND', message: 'No invoice exists for the supplied orderId. The order may not be eligible for invoicing.', orderId: vars.orderId}]"
+                    doc:name="Set Not Found Error"
+                    doc:description="Builds INVOICE_NOT_FOUND error payload"/>
+                <raise-error type="APP:INVOICE_NOT_FOUND" description="Invoice not found"
+                    doc:name="Raise INVOICE_NOT_FOUND"
+                    doc:description="Propagates error to mcp:on-error-responses"/>
+            </when>
+            <otherwise>
+                <logger
+                    level="INFO"
+                    message="#['[' ++ correlationId ++ '] create_invoice | orderId=' ++ (vars.orderId default '') ++ ' | invoiceId=' ++ (payload.invoiceId default '') ++ ' | total=' ++ ((payload.total default 0) as String)]"
+                    doc:name="Log Success"
+                    doc:description="Logs successful invoice retrieval with invoiceId and total"/>
+            </otherwise>
+        </choice>
+
+        <error-handler>
+            <on-error-propagate type="APP:INVALID_INPUT"
+                doc:name="Handle INVALID_INPUT"
+                doc:description="Propagates INVALID_INPUT so mcp:on-error-responses sends the structured error">
+                <logger level="WARN"
+                    message="#['[' ++ correlationId ++ '] create_invoice | INVALID_INPUT - orderId is empty']"
+                    doc:name="Log Invalid Input"
+                    doc:description="Logs the missing-orderId warning"/>
+            </on-error-propagate>
+            <on-error-propagate type="APP:INVOICE_NOT_FOUND"
+                doc:name="Handle INVOICE_NOT_FOUND"
+                doc:description="Propagates INVOICE_NOT_FOUND so mcp:on-error-responses sends the structured error">
+                <logger level="WARN"
+                    message="#['[' ++ correlationId ++ '] create_invoice | INVOICE_NOT_FOUND | orderId=' ++ (vars.orderId default '')]"
+                    doc:name="Log Not Found"
+                    doc:description="Logs the INVOICE_NOT_FOUND warning"/>
+            </on-error-propagate>
+        </error-handler>
+
+    </flow>
+
+
+    <!-- ================================================================
+         TOOL: get_payment_status
+         Returns payment details for an order using orderId or paymentId.
+         Reads from mock-payments.json.
+         ================================================================ -->
+    <flow name="get-payment-status-tool-flow"
+          doc:name="Tool: get_payment_status"
+          doc:description="MCP tool flow that returns payment status and details for a given orderId or paymentId">
+
+        <mcp:tool-listener
+            name="get_payment_status"
+            config-ref="MCP_Server_Config"
+            doc:name="MCP Tool Listener: get_payment_status"
+            doc:description="Registers get_payment_status tool; fires on tools/call for this tool name">
+
+            <mcp:description>Get the payment status and details for an order. Supply either orderId or paymentId — at least one is required. Returns payment method, transaction ID, amount, currency, and current status.</mcp:description>
+
+            <mcp:parameters-schema><![CDATA[{
+  "type": "object",
+  "properties": {
+    "orderId": {
+      "type": "string",
+      "description": "Unique order identifier, for example ORD-1001."
+    },
+    "paymentId": {
+      "type": "string",
+      "description": "Unique payment identifier, for example PAY-3001."
+    }
+  },
+  "additionalProperties": false
+}]]></mcp:parameters-schema>
+
+            <mcp:output-schema-definition>
+                <mcp:inline-output-schema>
+                    <mcp:output-schema><![CDATA[{
+  "type": "object",
+  "properties": {
+    "paymentId":     { "type": "string" },
+    "orderId":       { "type": "string" },
+    "customerId":    { "type": "string" },
+    "paymentMethod": { "type": "string" },
+    "cardLast4":     { "type": ["string", "null"] },
+    "paymentStatus": { "type": "string" },
+    "amount":        { "type": "number" },
+    "currency":      { "type": "string" },
+    "paymentDate":   { "type": ["string", "null"] },
+    "transactionId": { "type": ["string", "null"] }
+  },
+  "required": ["paymentId", "orderId", "paymentStatus", "amount"]
+}]]></mcp:output-schema>
+                </mcp:inline-output-schema>
+            </mcp:output-schema-definition>
+
+            <mcp:responses>
+                <mcp:text-tool-response-content
+                    text="#[write(payload, 'application/json')]"/>
+            </mcp:responses>
+
+            <mcp:on-error-responses>
+                <mcp:text-tool-response-content
+                    text="#[write(vars.mcpError default {code: 'INTERNAL_ERROR', message: 'An unexpected error occurred while retrieving payment status.'}, 'application/json')]"/>
+            </mcp:on-error-responses>
+
+        </mcp:tool-listener>
+
+        <!-- Extract lookup parameters -->
+        <set-variable variableName="lookupOrderId"
+            value="#[trim(payload.orderId default '') as String]"
+            doc:name="Extract orderId"
+            doc:description="Extracts optional orderId from tool call input"/>
+        <set-variable variableName="lookupPaymentId"
+            value="#[trim(payload.paymentId default '') as String]"
+            doc:name="Extract paymentId"
+            doc:description="Extracts optional paymentId from tool call input"/>
+
+        <!-- Validate: at least one lookup key required -->
+        <choice doc:name="Validate Input" doc:description="Ensures at least orderId or paymentId is supplied">
+            <when expression="#[vars.lookupOrderId == '' and vars.lookupPaymentId == '']">
+                <set-variable
+                    variableName="mcpError"
+                    value="#[{code: 'INVALID_INPUT', message: 'Provide either orderId or paymentId to retrieve payment status.'}]"
+                    doc:name="Set Missing Input Error"
+                    doc:description="Builds INVALID_INPUT error when neither orderId nor paymentId is supplied"/>
+                <raise-error type="APP:INVALID_INPUT" description="orderId or paymentId is required"
+                    doc:name="Raise INVALID_INPUT"
+                    doc:description="Propagates error so mcp:on-error-responses returns the structured error"/>
+            </when>
+        </choice>
+
+        <!-- Look up payment in mock data -->
+        <ee:transform
+            doc:name="Find Payment"
+            doc:description="Reads mock-payments.json, matches by orderId or paymentId, returns payment record or null">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+var allPayments  = readUrl("classpath://mock-payments.json", "application/json")
+var byOrderId    = if (vars.lookupOrderId   != '') allPayments filter ($.orderId   == vars.lookupOrderId)   else allPayments
+var byPaymentId  = if (vars.lookupPaymentId != '') byOrderId   filter ($.paymentId == vars.lookupPaymentId) else byOrderId
+---
+if (sizeOf(byPaymentId) > 0) byPaymentId[0]
+else null]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+
+        <!-- Route: payment found vs not found -->
+        <choice doc:name="Payment Found?" doc:description="Routes to success or raises PAYMENT_NOT_FOUND">
+            <when expression="#[payload == null]">
+                <set-variable
+                    variableName="mcpError"
+                    value="#[{code: 'PAYMENT_NOT_FOUND', message: 'No payment record was found for the supplied orderId or paymentId.', orderId: (vars.lookupOrderId default ''), paymentId: (vars.lookupPaymentId default '')}]"
+                    doc:name="Set Not Found Error"
+                    doc:description="Builds PAYMENT_NOT_FOUND error payload"/>
+                <raise-error type="APP:PAYMENT_NOT_FOUND" description="Payment not found"
+                    doc:name="Raise PAYMENT_NOT_FOUND"
+                    doc:description="Propagates error to mcp:on-error-responses"/>
+            </when>
+            <otherwise>
+                <logger
+                    level="INFO"
+                    message="#['[' ++ correlationId ++ '] get_payment_status | paymentId=' ++ (payload.paymentId default '') ++ ' | status=' ++ (payload.paymentStatus default '') ++ ' | amount=' ++ ((payload.amount default 0) as String)]"
+                    doc:name="Log Success"
+                    doc:description="Logs successful payment status lookup with paymentId, status, and amount"/>
+            </otherwise>
+        </choice>
+
+        <error-handler>
+            <on-error-propagate type="APP:INVALID_INPUT"
+                doc:name="Handle INVALID_INPUT"
+                doc:description="Propagates INVALID_INPUT so mcp:on-error-responses sends the structured error">
+                <logger level="WARN"
+                    message="#['[' ++ correlationId ++ '] get_payment_status | INVALID_INPUT - no orderId or paymentId supplied']"
+                    doc:name="Log Invalid Input"
+                    doc:description="Logs the missing-input warning"/>
+            </on-error-propagate>
+            <on-error-propagate type="APP:PAYMENT_NOT_FOUND"
+                doc:name="Handle PAYMENT_NOT_FOUND"
+                doc:description="Propagates PAYMENT_NOT_FOUND so mcp:on-error-responses sends the structured error">
+                <logger level="WARN"
+                    message="#['[' ++ correlationId ++ '] get_payment_status | PAYMENT_NOT_FOUND | orderId=' ++ (vars.lookupOrderId default '') ++ ' | paymentId=' ++ (vars.lookupPaymentId default '')]"
+                    doc:name="Log Not Found"
+                    doc:description="Logs the PAYMENT_NOT_FOUND warning"/>
+            </on-error-propagate>
+        </error-handler>
+
+    </flow>
+
+
+    <!-- ================================================================
+         TOOL: process_refund
+         Looks up a refund record for an order from mock-refunds.json.
+         For orders with no existing refund, returns a simulated
+         INITIATED refund response to demonstrate the creation flow.
+         ================================================================ -->
+    <flow name="process-refund-tool-flow"
+          doc:name="Tool: process_refund"
+          doc:description="MCP tool flow that processes or retrieves a refund for a given orderId">
+
+        <mcp:tool-listener
+            name="process_refund"
+            config-ref="MCP_Server_Config"
+            doc:name="MCP Tool Listener: process_refund"
+            doc:description="Registers process_refund tool; fires on tools/call for this tool name">
+
+            <mcp:description>Process a refund request for an order or retrieve an existing refund record. Provide the orderId and an optional reason. Returns refund ID, status, amount, and timestamps.</mcp:description>
+
+            <mcp:parameters-schema><![CDATA[{
+  "type": "object",
+  "properties": {
+    "orderId": {
+      "type": "string",
+      "description": "Unique order identifier for which to request or retrieve a refund, for example ORD-1003.",
+      "minLength": 1
+    },
+    "reason": {
+      "type": "string",
+      "description": "Reason for the refund request, for example 'Item damaged on arrival'."
+    },
+    "amount": {
+      "type": "number",
+      "description": "Refund amount in USD. If omitted, the full order total is refunded."
+    }
+  },
+  "required": ["orderId"],
+  "additionalProperties": false
+}]]></mcp:parameters-schema>
+
+            <mcp:output-schema-definition>
+                <mcp:inline-output-schema>
+                    <mcp:output-schema><![CDATA[{
+  "type": "object",
+  "properties": {
+    "refundId":     { "type": "string" },
+    "orderId":      { "type": "string" },
+    "paymentId":    { "type": ["string", "null"] },
+    "customerId":   { "type": "string" },
+    "refundAmount": { "type": "number" },
+    "currency":     { "type": "string" },
+    "reason":       { "type": "string" },
+    "status":       { "type": "string" },
+    "requestedAt":  { "type": "string" },
+    "processedAt":  { "type": ["string", "null"] }
+  },
+  "required": ["refundId", "orderId", "refundAmount", "status", "requestedAt"]
+}]]></mcp:output-schema>
+                </mcp:inline-output-schema>
+            </mcp:output-schema-definition>
+
+            <mcp:responses>
+                <mcp:text-tool-response-content
+                    text="#[write(payload, 'application/json')]"/>
+            </mcp:responses>
+
+            <mcp:on-error-responses>
+                <mcp:text-tool-response-content
+                    text="#[write(vars.mcpError default {code: 'INTERNAL_ERROR', message: 'An unexpected error occurred while processing the refund.'}, 'application/json')]"/>
+            </mcp:on-error-responses>
+
+        </mcp:tool-listener>
+
+        <!-- Extract input parameters -->
+        <set-variable variableName="orderId"
+            value="#[trim(payload.orderId default '') as String]"
+            doc:name="Extract orderId"
+            doc:description="Extracts and trims orderId from tool call input"/>
+        <set-variable variableName="refundReason"
+            value="#[trim(payload.reason default 'Customer refund request') as String]"
+            doc:name="Extract reason"
+            doc:description="Extracts optional refund reason; defaults to generic reason if not supplied"/>
+        <set-variable variableName="refundAmount"
+            value="#[payload.amount default null]"
+            doc:name="Extract amount"
+            doc:description="Extracts optional refund amount; null means full refund"/>
+
+        <!-- Validate: reject empty orderId -->
+        <choice doc:name="Validate orderId" doc:description="Rejects missing or empty orderId">
+            <when expression="#[vars.orderId == '']">
+                <set-variable
+                    variableName="mcpError"
+                    value="#[{code: 'INVALID_INPUT', message: 'orderId is required to process a refund.'}]"
+                    doc:name="Set Empty orderId Error"
+                    doc:description="Builds INVALID_INPUT error when orderId is missing or empty"/>
+                <raise-error type="APP:INVALID_INPUT" description="orderId is missing or empty"
+                    doc:name="Raise INVALID_INPUT"
+                    doc:description="Propagates error so mcp:on-error-responses returns the structured error"/>
+            </when>
+        </choice>
+
+        <!-- Look up order and any existing refund; simulate creation when none exists -->
+        <ee:transform
+            doc:name="Find or Simulate Refund"
+            doc:description="Looks up existing refund in mock-refunds.json; if none found, cross-checks order and simulates an INITIATED refund">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+var allRefunds  = readUrl("classpath://mock-refunds.json",  "application/json")
+var allOrders   = readUrl("classpath://mock-orders.json",   "application/json")
+var refundMatch = allRefunds filter ($.orderId == vars.orderId)
+var orderMatch  = allOrders  filter ($.orderId == vars.orderId)
+var order       = if (sizeOf(orderMatch)  > 0) orderMatch[0]  else null
+var existingRef = if (sizeOf(refundMatch) > 0) refundMatch[0] else null
+
+// Determine effective refund amount (input or full order total)
+var effectiveAmount = if (vars.refundAmount != null) vars.refundAmount
+                      else if (order != null) order.orderTotal
+                      else 0.00
+---
+if (order == null) null          // order does not exist — caller will raise NOT_FOUND
+else if (existingRef != null) existingRef   // return the existing refund record
+else {                           // simulate a new INITIATED refund
+    refundId:     "REF-MOCK-" ++ vars.orderId,
+    orderId:      vars.orderId,
+    paymentId:    order.paymentId,
+    customerId:   order.customerId,
+    refundAmount: effectiveAmount,
+    currency:     "USD",
+    reason:       vars.refundReason,
+    status:       "INITIATED",
+    requestedAt:  now() as String {format: "yyyy-MM-dd'T'HH:mm:ss'Z'"},
+    processedAt:  null
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+
+        <!-- Route: order/refund found vs order not found -->
+        <choice doc:name="Refund Resolved?" doc:description="Routes to success or raises ORDER_NOT_FOUND when the order does not exist">
+            <when expression="#[payload == null]">
+                <set-variable
+                    variableName="mcpError"
+                    value="#[{code: 'ORDER_NOT_FOUND', message: 'No order was found for the supplied orderId. Cannot process refund.', orderId: vars.orderId}]"
+                    doc:name="Set Order Not Found Error"
+                    doc:description="Builds ORDER_NOT_FOUND error payload when the order does not exist"/>
+                <raise-error type="APP:ORDER_NOT_FOUND" description="Order not found for refund"
+                    doc:name="Raise ORDER_NOT_FOUND"
+                    doc:description="Propagates error to mcp:on-error-responses"/>
+            </when>
+            <otherwise>
+                <logger
+                    level="INFO"
+                    message="#['[' ++ correlationId ++ '] process_refund | orderId=' ++ (vars.orderId default '') ++ ' | refundId=' ++ (payload.refundId default '') ++ ' | status=' ++ (payload.status default '')]"
+                    doc:name="Log Success"
+                    doc:description="Logs successful refund processing with refundId, orderId, and status"/>
+            </otherwise>
+        </choice>
+
+        <error-handler>
+            <on-error-propagate type="APP:INVALID_INPUT"
+                doc:name="Handle INVALID_INPUT"
+                doc:description="Propagates INVALID_INPUT so mcp:on-error-responses sends the structured error">
+                <logger level="WARN"
+                    message="#['[' ++ correlationId ++ '] process_refund | INVALID_INPUT - orderId is empty']"
+                    doc:name="Log Invalid Input"
+                    doc:description="Logs the missing-orderId warning"/>
+            </on-error-propagate>
+            <on-error-propagate type="APP:ORDER_NOT_FOUND"
+                doc:name="Handle ORDER_NOT_FOUND"
+                doc:description="Propagates ORDER_NOT_FOUND so mcp:on-error-responses sends the structured error">
+                <logger level="WARN"
+                    message="#['[' ++ correlationId ++ '] process_refund | ORDER_NOT_FOUND | orderId=' ++ (vars.orderId default '')]"
+                    doc:name="Log Not Found"
+                    doc:description="Logs the ORDER_NOT_FOUND warning"/>
+            </on-error-propagate>
+        </error-handler>
+
+    </flow>
+
+</mule>

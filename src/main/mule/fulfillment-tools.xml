@@ -1,0 +1,338 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:mcp="http://www.mulesoft.org/schema/mule/mcp"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core
+          http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/mcp
+          http://www.mulesoft.org/schema/mule/mcp/current/mule-mcp.xsd
+        http://www.mulesoft.org/schema/mule/ee/core
+          http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <!-- ================================================================
+         TOOL: track_shipment
+         Returns detailed shipment tracking information for an order.
+         Accepts either trackingNumber or orderId as the lookup key.
+         Includes carrier, status, milestones, and ETA.
+         ================================================================ -->
+    <flow name="track-shipment-tool-flow"
+          doc:name="Tool: track_shipment"
+          doc:description="MCP tool flow that returns detailed shipment tracking for a given trackingNumber or orderId">
+
+        <mcp:tool-listener
+            name="track_shipment"
+            config-ref="MCP_Server_Config"
+            doc:name="MCP Tool Listener: track_shipment"
+            doc:description="Registers track_shipment tool; fires on tools/call for this tool name">
+
+            <mcp:description>Track a shipment and retrieve carrier details, current status, tracking milestones, and estimated delivery date. Supply either trackingNumber or orderId — at least one is required.</mcp:description>
+
+            <mcp:parameters-schema><![CDATA[{
+  "type": "object",
+  "properties": {
+    "trackingNumber": {
+      "type": "string",
+      "description": "Carrier tracking number, for example BD784512963IN."
+    },
+    "orderId": {
+      "type": "string",
+      "description": "Unique order identifier, for example ORD-1002.",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": false
+}]]></mcp:parameters-schema>
+
+            <mcp:output-schema-definition>
+                <mcp:inline-output-schema>
+                    <mcp:output-schema><![CDATA[{
+  "type": "object",
+  "properties": {
+    "orderId":               { "type": "string" },
+    "trackingNumber":        { "type": ["string", "null"] },
+    "carrier":               { "type": ["string", "null"] },
+    "shippingStatus":        { "type": "string" },
+    "estimatedDeliveryDate": { "type": ["string", "null"] },
+    "milestones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "event":     { "type": "string" },
+          "location":  { "type": "string" },
+          "timestamp": { "type": "string" }
+        }
+      }
+    }
+  },
+  "required": ["orderId", "shippingStatus"]
+}]]></mcp:output-schema>
+                </mcp:inline-output-schema>
+            </mcp:output-schema-definition>
+
+            <mcp:responses>
+                <mcp:text-tool-response-content
+                    text="#[write(payload, 'application/json')]"/>
+            </mcp:responses>
+
+            <mcp:on-error-responses>
+                <mcp:text-tool-response-content
+                    text="#[write(vars.mcpError default {code: 'INTERNAL_ERROR', message: 'An unexpected error occurred during shipment tracking.'}, 'application/json')]"/>
+            </mcp:on-error-responses>
+
+        </mcp:tool-listener>
+
+        <!-- Extract lookup parameters -->
+        <set-variable variableName="trackingNumber"
+            value="#[trim(payload.trackingNumber default '') as String]"
+            doc:name="Extract trackingNumber"
+            doc:description="Extracts optional trackingNumber from tool call input"/>
+        <set-variable variableName="orderId"
+            value="#[trim(payload.orderId default '') as String]"
+            doc:name="Extract orderId"
+            doc:description="Extracts optional orderId from tool call input"/>
+
+        <!-- Validate: at least one key must be provided -->
+        <choice doc:name="Validate Input" doc:description="Ensures at least trackingNumber or orderId is supplied">
+            <when expression="#[vars.trackingNumber == '' and vars.orderId == '']">
+                <set-variable
+                    variableName="mcpError"
+                    value="#[{code: 'INVALID_INPUT', message: 'Provide either trackingNumber or orderId to track a shipment.'}]"
+                    doc:name="Set Missing Input Error"
+                    doc:description="Builds INVALID_INPUT error when neither trackingNumber nor orderId is supplied"/>
+                <raise-error type="APP:INVALID_INPUT" description="trackingNumber or orderId is required"
+                    doc:name="Raise INVALID_INPUT"
+                    doc:description="Propagates error so mcp:on-error-responses returns the structured error"/>
+            </when>
+        </choice>
+
+        <!-- Find the order record and build tracking response -->
+        <ee:transform
+            doc:name="Find Shipment and Build Milestones"
+            doc:description="Reads mock-orders.json, matches by trackingNumber or orderId, returns tracking detail with mock milestones">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+var allOrders = readUrl("classpath://mock-orders.json", "application/json")
+var byTracking = if (vars.trackingNumber != '') allOrders filter ($.trackingNumber == vars.trackingNumber) else allOrders
+var byOrder    = if (vars.orderId != '') byTracking filter ($.orderId == vars.orderId) else byTracking
+var order      = if (sizeOf(byOrder) > 0) byOrder[0] else null
+
+// Build mock milestone events based on shippingStatus
+var milestones = if (order == null) []
+  else if (order.shippingStatus == "NOT_SHIPPED") [
+    {event: "Order Placed",        location: "Warehouse",          timestamp: (order.orderDate as String) ++ "T08:00:00Z"}
+  ]
+  else if (order.shippingStatus == "SHIPPED") [
+    {event: "Order Placed",        location: "Warehouse",          timestamp: (order.orderDate as String) ++ "T08:00:00Z"},
+    {event: "Picked Up by Carrier", location: "Dispatch Center",   timestamp: (order.orderDate as String) ++ "T18:00:00Z"},
+    {event: "In Transit",          location: "Regional Sorting Hub", timestamp: (order.lastUpdated as String)}
+  ]
+  else if (order.shippingStatus == "DELIVERED") [
+    {event: "Order Placed",        location: "Warehouse",          timestamp: (order.orderDate as String) ++ "T08:00:00Z"},
+    {event: "Picked Up by Carrier", location: "Dispatch Center",   timestamp: (order.orderDate as String) ++ "T18:00:00Z"},
+    {event: "In Transit",          location: "Regional Sorting Hub", timestamp: (order.orderDate as String) ++ "T22:00:00Z"},
+    {event: "Out for Delivery",    location: "Local Delivery Hub", timestamp: (order.estimatedDeliveryDate as String) ++ "T07:00:00Z"},
+    {event: "Delivered",           location: "Customer Address",   timestamp: (order.lastUpdated as String)}
+  ]
+  else []
+---
+if (order != null) {
+    orderId:               order.orderId,
+    trackingNumber:        order.trackingNumber,
+    carrier:               order.carrier,
+    shippingStatus:        order.shippingStatus,
+    estimatedDeliveryDate: order.estimatedDeliveryDate,
+    milestones:            milestones
+}
+else null]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+
+        <!-- Route: shipment found vs not found -->
+        <choice doc:name="Shipment Found?" doc:description="Routes to success or raises SHIPMENT_NOT_FOUND">
+            <when expression="#[payload == null]">
+                <set-variable
+                    variableName="mcpError"
+                    value="#[{code: 'SHIPMENT_NOT_FOUND', message: 'No shipment was found for the supplied tracking number or order ID.', trackingNumber: (vars.trackingNumber default ''), orderId: (vars.orderId default '')}]"
+                    doc:name="Set Not Found Error"
+                    doc:description="Builds SHIPMENT_NOT_FOUND error payload"/>
+                <raise-error type="APP:SHIPMENT_NOT_FOUND" description="Shipment not found"
+                    doc:name="Raise SHIPMENT_NOT_FOUND"
+                    doc:description="Propagates error to mcp:on-error-responses"/>
+            </when>
+            <otherwise>
+                <logger
+                    level="INFO"
+                    message="#['[' ++ correlationId ++ '] track_shipment | orderId=' ++ (payload.orderId default '') ++ ' | shippingStatus=' ++ (payload.shippingStatus default '')]"
+                    doc:name="Log Success"
+                    doc:description="Logs successful shipment tracking lookup"/>
+            </otherwise>
+        </choice>
+
+        <error-handler>
+            <on-error-propagate type="APP:INVALID_INPUT"
+                doc:name="Handle INVALID_INPUT"
+                doc:description="Propagates INVALID_INPUT so mcp:on-error-responses sends the structured error">
+                <logger level="WARN"
+                    message="#['[' ++ correlationId ++ '] track_shipment | INVALID_INPUT - no trackingNumber or orderId supplied']"
+                    doc:name="Log Invalid Input"
+                    doc:description="Logs the missing-input warning"/>
+            </on-error-propagate>
+            <on-error-propagate type="APP:SHIPMENT_NOT_FOUND"
+                doc:name="Handle SHIPMENT_NOT_FOUND"
+                doc:description="Propagates SHIPMENT_NOT_FOUND so mcp:on-error-responses sends the structured error">
+                <logger level="WARN"
+                    message="#['[' ++ correlationId ++ '] track_shipment | SHIPMENT_NOT_FOUND | trackingNumber=' ++ (vars.trackingNumber default '') ++ ' | orderId=' ++ (vars.orderId default '')]"
+                    doc:name="Log Not Found"
+                    doc:description="Logs the SHIPMENT_NOT_FOUND warning"/>
+            </on-error-propagate>
+        </error-handler>
+
+    </flow>
+
+
+    <!-- ================================================================
+         TOOL: check_inventory
+         Returns stock level and availability for a product SKU from
+         mock-inventory.json. SKU is required.
+         ================================================================ -->
+    <flow name="check-inventory-tool-flow"
+          doc:name="Tool: check_inventory"
+          doc:description="MCP tool flow that returns inventory stock details for a product SKU">
+
+        <mcp:tool-listener
+            name="check_inventory"
+            config-ref="MCP_Server_Config"
+            doc:name="MCP Tool Listener: check_inventory"
+            doc:description="Registers check_inventory tool; fires on tools/call for this tool name">
+
+            <mcp:description>Check the current inventory stock level for a product SKU. Returns available quantity, warehouse location, reorder level, and stock status (IN_STOCK, LOW_STOCK, OUT_OF_STOCK).</mcp:description>
+
+            <mcp:parameters-schema><![CDATA[{
+  "type": "object",
+  "properties": {
+    "sku": {
+      "type": "string",
+      "description": "Product SKU identifier, for example SKU-A100.",
+      "minLength": 1
+    }
+  },
+  "required": ["sku"],
+  "additionalProperties": false
+}]]></mcp:parameters-schema>
+
+            <mcp:output-schema-definition>
+                <mcp:inline-output-schema>
+                    <mcp:output-schema><![CDATA[{
+  "type": "object",
+  "properties": {
+    "sku":                { "type": "string" },
+    "name":               { "type": "string" },
+    "category":           { "type": "string" },
+    "stockQuantity":      { "type": "number" },
+    "reservedQuantity":   { "type": "number" },
+    "availableQuantity":  { "type": "number" },
+    "warehouseLocation":  { "type": "string" },
+    "reorderLevel":       { "type": "number" },
+    "unitPrice":          { "type": "number" },
+    "status":             { "type": "string" }
+  },
+  "required": ["sku", "name", "availableQuantity", "status"]
+}]]></mcp:output-schema>
+                </mcp:inline-output-schema>
+            </mcp:output-schema-definition>
+
+            <mcp:responses>
+                <mcp:text-tool-response-content
+                    text="#[write(payload, 'application/json')]"/>
+            </mcp:responses>
+
+            <mcp:on-error-responses>
+                <mcp:text-tool-response-content
+                    text="#[write(vars.mcpError default {code: 'INTERNAL_ERROR', message: 'An unexpected error occurred while checking inventory.'}, 'application/json')]"/>
+            </mcp:on-error-responses>
+
+        </mcp:tool-listener>
+
+        <!-- Extract and trim SKU -->
+        <set-variable variableName="sku"
+            value="#[trim(payload.sku default '') as String]"
+            doc:name="Extract sku"
+            doc:description="Extracts and trims SKU from tool call input"/>
+
+        <!-- Validate: reject empty SKU -->
+        <choice doc:name="Validate sku" doc:description="Rejects missing or empty SKU before querying mock data">
+            <when expression="#[vars.sku == '']">
+                <set-variable
+                    variableName="mcpError"
+                    value="#[{code: 'INVALID_INPUT', message: 'sku is required to check inventory.', sku: vars.sku}]"
+                    doc:name="Set Empty SKU Error"
+                    doc:description="Builds INVALID_INPUT error when SKU is missing or empty"/>
+                <raise-error type="APP:INVALID_INPUT" description="sku is missing or empty"
+                    doc:name="Raise INVALID_INPUT"
+                    doc:description="Propagates error so mcp:on-error-responses returns the structured error"/>
+            </when>
+        </choice>
+
+        <!-- Look up product in mock inventory -->
+        <ee:transform
+            doc:name="Find Inventory Item"
+            doc:description="Reads mock-inventory.json and returns the matching product record or null">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+var allItems = readUrl("classpath://mock-inventory.json", "application/json")
+var matches  = allItems filter ($.sku == vars.sku)
+---
+if (sizeOf(matches) > 0) matches[0]
+else null]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+
+        <!-- Route: product found vs not found -->
+        <choice doc:name="Product Found?" doc:description="Routes to success or raises PRODUCT_NOT_FOUND">
+            <when expression="#[payload == null]">
+                <set-variable
+                    variableName="mcpError"
+                    value="#[{code: 'PRODUCT_NOT_FOUND', message: 'No product was found for the supplied SKU.', sku: vars.sku}]"
+                    doc:name="Set Not Found Error"
+                    doc:description="Builds PRODUCT_NOT_FOUND error payload"/>
+                <raise-error type="APP:PRODUCT_NOT_FOUND" description="Product not found"
+                    doc:name="Raise PRODUCT_NOT_FOUND"
+                    doc:description="Propagates error to mcp:on-error-responses"/>
+            </when>
+            <otherwise>
+                <logger
+                    level="INFO"
+                    message="#['[' ++ correlationId ++ '] check_inventory | sku=' ++ vars.sku ++ ' | status=' ++ (payload.status default 'unknown') ++ ' | available=' ++ (payload.availableQuantity as String)]"
+                    doc:name="Log Success"
+                    doc:description="Logs successful inventory lookup with SKU, status, and available quantity"/>
+            </otherwise>
+        </choice>
+
+        <error-handler>
+            <on-error-propagate type="APP:INVALID_INPUT"
+                doc:name="Handle INVALID_INPUT"
+                doc:description="Propagates INVALID_INPUT so mcp:on-error-responses sends the structured error">
+                <logger level="WARN"
+                    message="#['[' ++ correlationId ++ '] check_inventory | INVALID_INPUT - sku is empty']"
+                    doc:name="Log Invalid Input"
+                    doc:description="Logs the missing-SKU warning"/>
+            </on-error-propagate>
+            <on-error-propagate type="APP:PRODUCT_NOT_FOUND"
+                doc:name="Handle PRODUCT_NOT_FOUND"
+                doc:description="Propagates PRODUCT_NOT_FOUND so mcp:on-error-responses sends the structured error">
+                <logger level="WARN"
+                    message="#['[' ++ correlationId ++ '] check_inventory | PRODUCT_NOT_FOUND | sku=' ++ (vars.sku default '')]"
+                    doc:name="Log Not Found"
+                    doc:description="Logs the PRODUCT_NOT_FOUND warning"/>
+            </on-error-propagate>
+        </error-handler>
+
+    </flow>
+
+</mule>

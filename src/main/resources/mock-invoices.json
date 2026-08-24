@@ -1,0 +1,69 @@
+[
+  {
+    "invoiceId": "INV-2001",
+    "orderId": "ORD-1001",
+    "customerId": "CUST-101",
+    "invoiceDate": "2026-08-14",
+    "dueDate": "2026-08-28",
+    "status": "PENDING",
+    "currency": "USD",
+    "subtotal": 79.97,
+    "taxRate": 0.09,
+    "taxAmount": 7.20,
+    "total": 87.17,
+    "lineItems": [
+      { "sku": "SKU-A100", "description": "Wireless Mouse",   "qty": 2, "unitPrice": 29.99, "lineTotal": 59.98 },
+      { "sku": "SKU-B200", "description": "USB Hub",           "qty": 1, "unitPrice": 19.99, "lineTotal": 19.99 }
+    ]
+  },
+  {
+    "invoiceId": "INV-2002",
+    "orderId": "ORD-1002",
+    "customerId": "CUST-102",
+    "invoiceDate": "2026-08-13",
+    "dueDate": "2026-08-27",
+    "status": "PAID",
+    "currency": "USD",
+    "subtotal": 89.99,
+    "taxRate": 0.00,
+    "taxAmount": 0.00,
+    "total": 89.99,
+    "lineItems": [
+      { "sku": "SKU-C300", "description": "Mechanical Keyboard", "qty": 1, "unitPrice": 89.99, "lineTotal": 89.99 }
+    ]
+  },
+  {
+    "invoiceId": "INV-2003",
+    "orderId": "ORD-1003",
+    "customerId": "CUST-101",
+    "invoiceDate": "2026-08-10",
+    "dueDate": "2026-08-24",
+    "status": "REFUNDED",
+    "currency": "USD",
+    "subtotal": 45.00,
+    "taxRate": 0.00,
+    "taxAmount": 0.00,
+    "total": 45.00,
+    "lineItems": [
+      { "sku": "SKU-D400", "description": "Monitor Stand", "qty": 1, "unitPrice": 45.00, "lineTotal": 45.00 }
+    ]
+  },
+  {
+    "invoiceId": "INV-2004",
+    "orderId": "ORD-1005",
+    "customerId": "CUST-102",
+    "invoiceDate": "2026-08-16",
+    "dueDate": "2026-08-30",
+    "status": "PENDING",
+    "currency": "USD",
+    "subtotal": 124.98,
+    "taxRate": 0.00,
+    "taxAmount": 0.00,
+    "total": 124.98,
+    "lineItems": [
+      { "sku": "SKU-A100", "description": "Wireless Mouse", "qty": 1, "unitPrice": 29.99, "lineTotal": 29.99 },
+      { "sku": "SKU-E500", "description": "Laptop Stand",   "qty": 1, "unitPrice": 34.99, "lineTotal": 34.99 },
+      { "sku": "SKU-B200", "description": "USB Hub",         "qty": 3, "unitPrice": 19.99, "lineTotal": 59.97 }
+    ]
+  }
+]

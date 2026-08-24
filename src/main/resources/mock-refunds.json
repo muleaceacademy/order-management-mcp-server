@@ -1,0 +1,26 @@
+[
+  {
+    "refundId": "REF-4001",
+    "orderId": "ORD-1003",
+    "paymentId": "PAY-3003",
+    "customerId": "CUST-101",
+    "refundAmount": 45.00,
+    "currency": "USD",
+    "reason": "Customer requested return after delivery",
+    "status": "COMPLETED",
+    "requestedAt": "2026-08-13T10:00:00Z",
+    "processedAt": "2026-08-14T08:30:00Z"
+  },
+  {
+    "refundId": "REF-4002",
+    "orderId": "ORD-1004",
+    "paymentId": "PAY-3004",
+    "customerId": "CUST-103",
+    "refundAmount": 29.99,
+    "currency": "USD",
+    "reason": "Order cancelled by customer before shipment",
+    "status": "COMPLETED",
+    "requestedAt": "2026-08-16T10:05:00Z",
+    "processedAt": "2026-08-16T10:30:00Z"
+  }
+]

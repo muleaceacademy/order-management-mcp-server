@@ -1,0 +1,62 @@
+[
+  {
+    "paymentId": "PAY-3001",
+    "orderId": "ORD-1001",
+    "customerId": "CUST-101",
+    "paymentMethod": "CREDIT_CARD",
+    "cardLast4": "4242",
+    "paymentStatus": "CAPTURED",
+    "amount": 87.17,
+    "currency": "USD",
+    "paymentDate": "2026-08-14T09:15:00Z",
+    "transactionId": "TXN-ABC123456"
+  },
+  {
+    "paymentId": "PAY-3002",
+    "orderId": "ORD-1002",
+    "customerId": "CUST-102",
+    "paymentMethod": "UPI",
+    "cardLast4": null,
+    "paymentStatus": "CAPTURED",
+    "amount": 89.99,
+    "currency": "USD",
+    "paymentDate": "2026-08-13T11:30:00Z",
+    "transactionId": "TXN-DEF789012"
+  },
+  {
+    "paymentId": "PAY-3003",
+    "orderId": "ORD-1003",
+    "customerId": "CUST-101",
+    "paymentMethod": "NET_BANKING",
+    "cardLast4": null,
+    "paymentStatus": "REFUNDED",
+    "amount": 45.00,
+    "currency": "USD",
+    "paymentDate": "2026-08-10T14:00:00Z",
+    "transactionId": "TXN-GHI345678"
+  },
+  {
+    "paymentId": "PAY-3004",
+    "orderId": "ORD-1004",
+    "customerId": "CUST-103",
+    "paymentMethod": "DEBIT_CARD",
+    "cardLast4": "1234",
+    "paymentStatus": "REFUNDED",
+    "amount": 29.99,
+    "currency": "USD",
+    "paymentDate": "2026-08-15T16:20:00Z",
+    "transactionId": "TXN-JKL901234"
+  },
+  {
+    "paymentId": "PAY-3005",
+    "orderId": "ORD-1005",
+    "customerId": "CUST-102",
+    "paymentMethod": "CREDIT_CARD",
+    "cardLast4": "9999",
+    "paymentStatus": "PENDING",
+    "amount": 124.98,
+    "currency": "USD",
+    "paymentDate": null,
+    "transactionId": null
+  }
+]

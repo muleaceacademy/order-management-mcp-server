@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:mcp="http://www.mulesoft.org/schema/mule/mcp"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core
+          http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/mcp
+          http://www.mulesoft.org/schema/mule/mcp/current/mule-mcp.xsd
+        http://www.mulesoft.org/schema/mule/ee/core
+          http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <!-- ================================================================
+         TOOL: search_orders
+         Searches orders in mock-orders.json using optional filters:
+         status, customerId, dateFrom, dateTo.
+         Returns a list of matching order summaries.
+         ================================================================ -->
+    <flow name="search-orders-tool-flow"
+          doc:name="Tool: search_orders"
+          doc:description="MCP tool flow that searches orders by optional filter criteria">
+
+        <mcp:tool-listener
+            name="search_orders"
+            config-ref="MCP_Server_Config"
+            doc:name="MCP Tool Listener: search_orders"
+            doc:description="Registers search_orders tool; fires on tools/call for this tool name">
+
+            <mcp:description>Search orders using optional filter criteria such as status, customerId, orderDate range (dateFrom / dateTo). Returns a list of matching order summaries. All parameters are optional; omitting all returns all orders.</mcp:description>
+
+            <mcp:parameters-schema><![CDATA[{
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "description": "Filter by order status. Valid values: PENDING, PROCESSING, SHIPPED, DELIVERED, CANCELLED.",
+      "enum": ["PENDING", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED"]
+    },
+    "customerId": {
+      "type": "string",
+      "description": "Filter by customer ID, for example CUST-101."
+    },
+    "dateFrom": {
+      "type": "string",
+      "description": "Return orders placed on or after this date (inclusive). Format: YYYY-MM-DD."
+    },
+    "dateTo": {
+      "type": "string",
+      "description": "Return orders placed on or before this date (inclusive). Format: YYYY-MM-DD."
+    }
+  },
+  "additionalProperties": false
+}]]></mcp:parameters-schema>
+
+            <mcp:output-schema-definition>
+                <mcp:inline-output-schema>
+                    <mcp:output-schema><![CDATA[{
+  "type": "object",
+  "properties": {
+    "totalResults": { "type": "number" },
+    "orders": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "orderId":    { "type": "string" },
+          "customerId": { "type": "string" },
+          "status":     { "type": "string" },
+          "orderDate":  { "type": "string" },
+          "orderTotal": { "type": "number" }
+        }
+      }
+    }
+  },
+  "required": ["totalResults", "orders"]
+}]]></mcp:output-schema>
+                </mcp:inline-output-schema>
+            </mcp:output-schema-definition>
+
+            <mcp:responses>
+                <mcp:text-tool-response-content
+                    text="#[write(payload, 'application/json')]"/>
+            </mcp:responses>
+
+            <mcp:on-error-responses>
+                <mcp:text-tool-response-content
+                    text="#[write(vars.mcpError default {code: 'INTERNAL_ERROR', message: 'An unexpected error occurred while searching orders.'}, 'application/json')]"/>
+            </mcp:on-error-responses>
+
+        </mcp:tool-listener>
+
+        <!-- Extract optional filter parameters -->
+        <set-variable variableName="filterStatus"
+            value="#[trim(payload.status default '') as String]"
+            doc:name="Extract status filter"
+            doc:description="Extracts optional status filter from tool input"/>
+        <set-variable variableName="filterCustomerId"
+            value="#[trim(payload.customerId default '') as String]"
+            doc:name="Extract customerId filter"
+            doc:description="Extracts optional customerId filter from tool input"/>
+        <set-variable variableName="filterDateFrom"
+            value="#[trim(payload.dateFrom default '') as String]"
+            doc:name="Extract dateFrom filter"
+            doc:description="Extracts optional dateFrom filter (YYYY-MM-DD) from tool input"/>
+        <set-variable variableName="filterDateTo"
+            value="#[trim(payload.dateTo default '') as String]"
+            doc:name="Extract dateTo filter"
+            doc:description="Extracts optional dateTo filter (YYYY-MM-DD) from tool input"/>
+
+        <!-- Apply filters and build response -->
+        <ee:transform
+            doc:name="Filter Orders and Build Response"
+            doc:description="Reads mock-orders.json, applies all active filters, returns summary list">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+var allOrders  = readUrl("classpath://mock-orders.json", "application/json")
+var byStatus   = if (vars.filterStatus    != '') allOrders  filter ($.status     == vars.filterStatus)     else allOrders
+var byCustomer = if (vars.filterCustomerId != '') byStatus  filter ($.customerId == vars.filterCustomerId) else byStatus
+var byDateFrom = if (vars.filterDateFrom  != '') byCustomer filter ($.orderDate  >= vars.filterDateFrom)   else byCustomer
+var byDateTo   = if (vars.filterDateTo    != '') byDateFrom filter ($.orderDate  <= vars.filterDateTo)     else byDateFrom
+var results    = byDateTo map {
+    orderId:    $.orderId,
+    customerId: $.customerId,
+    status:     $.status,
+    orderDate:  $.orderDate,
+    orderTotal: $.orderTotal
+}
+---
+{
+    totalResults: sizeOf(results),
+    orders: results
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+
+        <logger
+            level="INFO"
+            message="#['[' ++ correlationId ++ '] search_orders | status=' ++ (vars.filterStatus default 'ANY') ++ ' | customerId=' ++ (vars.filterCustomerId default 'ANY') ++ ' | results=' ++ (payload.totalResults as String)]"
+            doc:name="Log Search Results"
+            doc:description="Logs search criteria and result count"/>
+
+    </flow>
+
+</mule>

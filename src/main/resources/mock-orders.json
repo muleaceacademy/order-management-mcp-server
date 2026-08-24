@@ -1,32 +1,110 @@
 [
   {
     "orderId": "ORD-1001",
+    "customerId": "CUST-101",
     "status": "PROCESSING",
+    "orderDate": "2026-08-14",
     "lastUpdated": "2026-08-15T08:30:00Z",
     "message": "The order is currently being processed.",
     "shippingStatus": "NOT_SHIPPED",
     "carrier": null,
     "trackingNumber": null,
-    "estimatedDeliveryDate": "2026-08-20"
+    "estimatedDeliveryDate": "2026-08-20",
+    "invoiceId": "INV-2001",
+    "paymentId": "PAY-3001",
+    "paymentStatus": "PAID",
+    "refundId": null,
+    "refundStatus": "NONE",
+    "orderTotal": 79.97,
+    "items": [
+      { "sku": "SKU-A100", "name": "Wireless Mouse",   "qty": 2, "unitPrice": 29.99 },
+      { "sku": "SKU-B200", "name": "USB Hub",           "qty": 1, "unitPrice": 19.99 }
+    ]
   },
   {
     "orderId": "ORD-1002",
+    "customerId": "CUST-102",
     "status": "SHIPPED",
+    "orderDate": "2026-08-13",
     "lastUpdated": "2026-08-15T06:45:00Z",
     "message": "The order has been shipped.",
     "shippingStatus": "SHIPPED",
     "carrier": "Blue Dart",
     "trackingNumber": "BD784512963IN",
-    "estimatedDeliveryDate": "2026-08-18"
+    "estimatedDeliveryDate": "2026-08-18",
+    "invoiceId": "INV-2002",
+    "paymentId": "PAY-3002",
+    "paymentStatus": "PAID",
+    "refundId": null,
+    "refundStatus": "NONE",
+    "orderTotal": 89.99,
+    "items": [
+      { "sku": "SKU-C300", "name": "Mechanical Keyboard", "qty": 1, "unitPrice": 89.99 }
+    ]
   },
   {
     "orderId": "ORD-1003",
+    "customerId": "CUST-101",
     "status": "DELIVERED",
+    "orderDate": "2026-08-10",
     "lastUpdated": "2026-08-12T14:20:00Z",
     "message": "The order was delivered successfully.",
     "shippingStatus": "DELIVERED",
     "carrier": "DHL",
     "trackingNumber": "DHL963258741",
-    "estimatedDeliveryDate": "2026-08-12"
+    "estimatedDeliveryDate": "2026-08-12",
+    "invoiceId": "INV-2003",
+    "paymentId": "PAY-3003",
+    "paymentStatus": "PAID",
+    "refundId": "REF-4001",
+    "refundStatus": "REFUNDED",
+    "orderTotal": 45.00,
+    "items": [
+      { "sku": "SKU-D400", "name": "Monitor Stand", "qty": 1, "unitPrice": 45.00 }
+    ]
+  },
+  {
+    "orderId": "ORD-1004",
+    "customerId": "CUST-103",
+    "status": "CANCELLED",
+    "orderDate": "2026-08-15",
+    "lastUpdated": "2026-08-16T10:00:00Z",
+    "message": "The order was cancelled by the customer.",
+    "shippingStatus": "NOT_SHIPPED",
+    "carrier": null,
+    "trackingNumber": null,
+    "estimatedDeliveryDate": null,
+    "invoiceId": null,
+    "paymentId": "PAY-3004",
+    "paymentStatus": "REFUNDED",
+    "refundId": "REF-4002",
+    "refundStatus": "REFUNDED",
+    "orderTotal": 29.99,
+    "items": [
+      { "sku": "SKU-A100", "name": "Wireless Mouse", "qty": 1, "unitPrice": 29.99 }
+    ]
+  },
+  {
+    "orderId": "ORD-1005",
+    "customerId": "CUST-102",
+    "status": "PENDING",
+    "orderDate": "2026-08-16",
+    "lastUpdated": "2026-08-16T15:00:00Z",
+    "message": "The order is pending payment confirmation.",
+    "shippingStatus": "NOT_SHIPPED",
+    "carrier": null,
+    "trackingNumber": null,
+    "estimatedDeliveryDate": "2026-08-22",
+    "invoiceId": "INV-2004",
+    "paymentId": "PAY-3005",
+    "paymentStatus": "PENDING",
+    "refundId": null,
+    "refundStatus": "NONE",
+    "orderTotal": 124.98,
+    "items": [
+      { "sku": "SKU-A100", "name": "Wireless Mouse",  "qty": 1, "unitPrice": 29.99 },
+      { "sku": "SKU-E500", "name": "Laptop Stand",    "qty": 1, "unitPrice": 34.99 },
+      { "sku": "SKU-B200", "name": "USB Hub",          "qty": 3, "unitPrice": 19.99 }
+    ]
   }
 ]
