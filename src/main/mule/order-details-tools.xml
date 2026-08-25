@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:mcp="http://www.mulesoft.org/schema/mule/mcp"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core
+          http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/mcp
+          http://www.mulesoft.org/schema/mule/mcp/current/mule-mcp.xsd
+        http://www.mulesoft.org/schema/mule/ee/core
+          http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <!-- ================================================================
+         TOOL: get_order_details
+         Returns a deliberately over-engineered, bloated order payload
+         containing: full customer profile, product attributes, internal
+         system IDs, null fields, embedded HTML, repeated JSON keys, and
+         base64-encoded image content.
+
+         PURPOSE: Demonstrates the need for the MuleSoft Payload
+         Optimization policy (token-cost reduction for LLM-facing APIs).
+         Mock data is loaded from mock-order-details.json so the flow
+         remains compact while the JSON resource carries the full bloat.
+         ================================================================ -->
+    <flow name="get-order-details-tool-flow"
+          doc:name="Tool: get_order_details"
+          doc:description="MCP tool that returns a massive unoptimized order payload for Payload Optimization policy demo">
+
+        <mcp:tool-listener
+            name="get_order_details"
+            config-ref="MCP_Server_Config"
+            doc:name="MCP Tool Listener: get_order_details"
+            doc:description="Registers get_order_details tool; fires on tools/call for this tool name">
+
+            <mcp:description><![CDATA[Returns the complete, unfiltered details for an order including: full customer profile (address duplicated 6 ways, name repeated 8 ways), all product specifications, embedded HTML marketing content with inline scripts, base64-encoded product images, internal ERP/CRM/warehouse IDs, null placeholder fields, verbose 8-event audit history, order totals duplicated in 4 separate structures, and unrelated product recommendations. NOTE: This tool intentionally returns a large unoptimized payload (~15 KB) to demonstrate the MuleSoft Payload Optimization policy for LLM token-cost reduction.]]></mcp:description>
+
+            <mcp:parameters-schema><![CDATA[{
+  "type": "object",
+  "properties": {
+    "orderId": {
+      "type": "string",
+      "description": "Unique order identifier, for example ORD-1001.",
+      "minLength": 1
+    }
+  },
+  "required": ["orderId"],
+  "additionalProperties": false
+}]]></mcp:parameters-schema>
+
+            <mcp:output-schema-definition>
+                <mcp:inline-output-schema>
+                    <mcp:output-schema><![CDATA[{
+  "type": "object",
+  "description": "Unoptimized full order detail payload — customer, items, HTML, base64, repeated keys, nulls, audit log, metadata.",
+  "properties": {
+    "orderId":         { "type": "string" },
+    "status":          { "type": "string" },
+    "customer":        { "type": "object" },
+    "items":           { "type": "array"  },
+    "shipping":        { "type": "object" },
+    "shippingDetails": { "type": "object" },
+    "payment":         { "type": "object" },
+    "totals":          { "type": "object" },
+    "summary":         { "type": "object" },
+    "auditLog":        { "type": "array"  },
+    "recommendations": { "type": "array"  },
+    "_metadata":       { "type": "object" }
+  },
+  "required": ["orderId", "status", "customer", "items"]
+}]]></mcp:output-schema>
+                </mcp:inline-output-schema>
+            </mcp:output-schema-definition>
+
+            <mcp:responses>
+                <mcp:text-tool-response-content
+                    text="#[write(payload, 'application/json')]"/>
+            </mcp:responses>
+
+            <mcp:on-error-responses>
+                <mcp:text-tool-response-content
+                    text="#[write(vars.mcpError default {code: 'INTERNAL_ERROR', message: 'An unexpected error occurred retrieving order details.', orderId: (vars.orderId default '')}, 'application/json')]"/>
+            </mcp:on-error-responses>
+
+        </mcp:tool-listener>
+
+        <!-- Extract and trim orderId from tool input -->
+        <set-variable
+            variableName="orderId"
+            value="#[trim(payload.orderId default '') as String]"
+            doc:name="Extract orderId"
+            doc:description="Extracts and trims orderId from the tool call input payload"/>
+
+        <!-- Validate: reject empty orderId -->
+        <choice doc:name="Validate orderId" doc:description="Rejects missing or empty orderId">
+            <when expression="#[vars.orderId == '']">
+                <set-variable
+                    variableName="mcpError"
+                    value="#[{code: 'INVALID_INPUT', message: 'orderId is required and must not be empty.', orderId: vars.orderId}]"
+                    doc:name="Set Missing orderId Error"
+                    doc:description="Builds INVALID_INPUT error when orderId is absent"/>
+                <raise-error type="APP:INVALID_INPUT" description="orderId is missing or empty"
+                    doc:name="Raise INVALID_INPUT"
+                    doc:description="Propagates so mcp:on-error-responses returns the structured error"/>
+            </when>
+        </choice>
+
+        <!-- Load bloated mock template and stamp the caller's orderId into every
+             identifier field so different orderId inputs get distinct-looking
+             responses while all anti-pattern fields remain consistently visible. -->
+        <ee:transform
+            doc:name="Load and Stamp Bloated Order Detail"
+            doc:description="Reads mock-order-details.json and replaces order identity fields with the caller-supplied orderId">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+var template = readUrl("classpath://mock-order-details.json", "application/json")
+---
+template update {
+    case .orderId          -> vars.orderId
+    case .orderReference   -> vars.orderId
+    case .order_id         -> vars.orderId
+    case .orderCode        -> vars.orderId
+    case .externalOrderRef -> "EXT-REF-" ++ vars.orderId
+    case .merchantOrderId  -> "MCH-" ++ vars.orderId ++ "-2026"
+    case .platformOrderId  -> "PLT-" ++ vars.orderId
+    case meta at .'_metadata' -> meta update {
+        case .'_requestedOrderId' -> vars.orderId
+    }
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+
+        <logger
+            level="INFO"
+            message="#['[' ++ correlationId ++ '] get_order_details | orderId=' ++ vars.orderId ++ ' | WARNING: unoptimized payload returned — apply Payload Optimization policy to reduce token cost']"
+            doc:name="Log Unoptimized Response Warning"
+            doc:description="Logs a reminder that this tool returns a bloated payload and the Payload Optimization policy should be applied"/>
+
+        <error-handler>
+            <on-error-propagate type="APP:INVALID_INPUT"
+                doc:name="Handle INVALID_INPUT"
+                doc:description="Propagates INVALID_INPUT so mcp:on-error-responses sends the structured error">
+                <logger
+                    level="WARN"
+                    message="#['[' ++ correlationId ++ '] get_order_details | INVALID_INPUT - orderId missing or empty']"
+                    doc:name="Log Invalid Input"
+                    doc:description="Logs the missing-input warning with correlation ID"/>
+            </on-error-propagate>
+        </error-handler>
+
+    </flow>
+
+</mule>
