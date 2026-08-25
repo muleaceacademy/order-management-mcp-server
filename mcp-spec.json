@@ -306,6 +306,41 @@
       }
     },
     {
+      "name": "get_order_details",
+      "description": "Returns the complete, unfiltered details for an order including full customer profile (address duplicated 6 ways, name repeated 8 ways), all product specifications, embedded HTML marketing content, base64-encoded product images, internal ERP/CRM/warehouse IDs, null placeholder fields, verbose audit history, order totals duplicated in 4 structures, and unrelated recommendations. NOTE: Intentionally returns a large unoptimized payload (~15 KB) to demonstrate the MuleSoft Payload Optimization policy for LLM token-cost reduction.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "description": "Unique order identifier, for example ORD-1001.",
+            "minLength": 1
+          }
+        },
+        "required": ["orderId"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Unoptimized full order detail payload — customer, items, HTML, base64, repeated keys, nulls, audit log, metadata.",
+        "properties": {
+          "orderId":         { "type": "string" },
+          "status":          { "type": "string" },
+          "customer":        { "type": "object" },
+          "items":           { "type": "array"  },
+          "shipping":        { "type": "object" },
+          "shippingDetails": { "type": "object" },
+          "payment":         { "type": "object" },
+          "totals":          { "type": "object" },
+          "summary":         { "type": "object" },
+          "auditLog":        { "type": "array"  },
+          "recommendations": { "type": "array"  },
+          "_metadata":       { "type": "object" }
+        },
+        "required": ["orderId", "status", "customer", "items"]
+      }
+    },
+    {
       "name": "check_inventory",
       "description": "Check the current inventory stock level for a product SKU. Returns available quantity, warehouse location, reorder level, and stock status (IN_STOCK, LOW_STOCK, OUT_OF_STOCK).",
       "inputSchema": {
